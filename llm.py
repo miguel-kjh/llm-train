@@ -5,12 +5,15 @@ from tqdm import tqdm
 from datetime import datetime
 import platform, shutil
 import requests, zipfile, io
+from lightning import seed_everything
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
 import sentencepiece as spm
+
+from gpt import GPT
 
 #deleted warnings
 import warnings
@@ -19,6 +22,10 @@ warnings.filterwarnings("ignore")
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.cuda.empty_cache()
+
+# Seed
+SEED = 2024
+seed_everything(SEED)
 
 # Hyperparameters architecture
 batch_size = 8
@@ -91,8 +98,12 @@ if __name__ == '__main__':
     encode: callable = lambda x: sp.Encode(x)
     decode: callable = lambda x: sp.Decode(x)
 
-    print(encode("hello world"))
-    print(decode(encode("hello world")))
+    @torch.no_grad()
+    def generate_samples(model: GPT, x: torch.Tensor, context: int, max: int = 500) -> torch.Tensor:
+        x_ = torch.tensor(encode(x), dtype=torch.long, device=device)
+        x_ = x_[None, :] # (1, context)
+        new_samples = model.generate(x_, max, context)[0].tolist()
+        return decode(new_samples)
 
     if os.path.exists("data/encoded_data.pt"):
         print("Loading encoded data")
@@ -109,7 +120,18 @@ if __name__ == '__main__':
 
     print(f"Total data: {formating_num(data_size)} M | Train data: {formating_num(len(train_data))} M | Val data: {formating_num(len(val_data))} M")
 
-    print("Data loaded")
     x, y = get_batch(train_data, batch_size, context)
-    print(x.shape, y.shape)
-    print(x[0][:10], y[0][:10])
+    print(f"x: {x.shape} | y: {y.shape}")
+    model = GPT(embed_size, context, vocab_size, n_layers, n_heads, BAIS).to(device)
+    print(model)
+    parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {formating_num(parameters)} M")
+    #logits, loss = model(x, y)
+    #print(f"logits: {logits.shape} | loss: {loss.item()}")
+    """idx = model.generate(x, 100, context)
+    print(f"idx: {idx.shape}")"""
+    input_ = "The quick brown fox jumps over the lazy dog"
+    print(f"Input: {input_}")
+    print(f"Generated: {generate_samples(model, input_, context, max=10)}")
+
+    
