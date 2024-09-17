@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     x, y = get_batch(train_data, batch_size, context)
     print(f"x: {x.shape} | y: {y.shape}")
-    model = GPT(embed_size, context, vocab_size, n_layers, n_heads, BAIS).to(device)
+    model = GPT(embed_size, context, vocab_size, n_layers, n_heads, BAIS, dropout).to(device)
     print(model)
     parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {formating_num(parameters)} M")
