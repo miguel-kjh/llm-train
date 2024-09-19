@@ -46,6 +46,7 @@ train_iters = 10e5
 eval_interval = 50
 eval_iters = 10
 compile_ = False
+load_pretrained = False
 checkpoint_dir = 'models'
 checkpoint_fn = 'latest.pt'
 checkpoint_load_fn = 'latest.pt'
@@ -87,6 +88,24 @@ def get_batch(data: torch.Tensor, batch_size: int, context: int) -> Tuple[torch.
     y = torch.stack([data[s+1:s+1+context] for s in start]) # (batch_size, context)
     return x.to(device), y.to(device)
 
+def load_checkpoints(model: GPT, optimizer: torch.optim.Optimizer, checkpoint_dir: str, checkpoint_fn: str) -> Tuple[int, float]:
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    checkpoint_path = os.path.join(checkpoint_dir, checkpoint_fn)
+    if os.path.exists(checkpoint_path) and load_pretrained:
+        print(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        start_iter = checkpoint['iter']
+        best_val_loss = checkpoint['best_val_loss']
+    else:
+        print(f"No checkpoint found in {checkpoint_path}")
+        start_iter = 0
+        best_val_loss = float('inf')
+    return start_iter, best_val_loss
+
+
 # main
 if __name__ == '__main__':
     text = load_data()
@@ -120,18 +139,59 @@ if __name__ == '__main__':
 
     print(f"Total data: {formating_num(data_size)} M | Train data: {formating_num(len(train_data))} M | Val data: {formating_num(len(val_data))} M")
 
-    x, y = get_batch(train_data, batch_size, context)
+    """x, y = get_batch(train_data, batch_size, context)
     print(f"x: {x.shape} | y: {y.shape}")
     model = GPT(embed_size, context, vocab_size, n_layers, n_heads, BAIS, dropout).to(device)
     print(model)
     parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {formating_num(parameters)} M")
-    #logits, loss = model(x, y)
-    #print(f"logits: {logits.shape} | loss: {loss.item()}")
-    """idx = model.generate(x, 100, context)
-    print(f"idx: {idx.shape}")"""
+    logits, loss = model(x, y)
+    print(f"logits: {logits.shape} | loss: {loss.item()}")
+    idx = model.generate(x, 100, context)
+    print(f"idx: {idx.shape}")
     input_ = "The quick brown fox jumps over the lazy dog"
     print(f"Input: {input_}")
-    print(f"Generated: {generate_samples(model, input_, context, max=10)}")
+    print(f"Generated: {generate_samples(model, input_, context, max=10)}")"""
+
+    # Training
+    model = GPT(embed_size, context, vocab_size, n_layers, n_heads, BAIS, dropout)
+    model.to(dtype)
+    model.to(device)
+
+    if compile_:
+        print("Compiling model")
+        model = torch.compile(model)
+    
+    parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {formating_num(parameters)} M")
+
+    @torch.no_grad()
+    def calculate_loss():
+        out = {}
+        model.eval()
+        for split, data in [("train", train_data), ("eval", val_data)]:
+            l = torch.zeros(eval_iters)
+            for i in range(eval_iters):
+                x, y = get_batch(data, batch_size, context)
+                _, loss = model(x, y)
+                l[i] = loss
+            out[split] = l.mean().item()
+        model.train()
+        return out
+    
+    print(calculate_loss())
+    
+    p_dict = {p_name: p for p_name, p in model.named_parameters() if p.requires_grad}
+    weight_decay_params = [p for n, p in p_dict.items() if p.dim() >= 2]
+    no_decay_params = [p for n, p in p_dict.items() if p.dim() < 2]
+    optimizer_groups = [
+        {"params": weight_decay_params, "weight_decay": weight_decay},
+        {"params": no_decay_params, "weight_decay": 0.0}
+    ]
+
+    optimizer = torch.optim.AdamW(optimizer_groups, lr=lr, betas=(0.9, 0.99))
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, train_iters, eta_min=lr/10)
+    
+    start_iter, best_val_loss = load_checkpoints(model, optimizer, checkpoint_dir, checkpoint_load_fn)
 
     
