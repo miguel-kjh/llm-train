@@ -28,7 +28,7 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads: int, head_size: int, embed_size: int, BAIS: bool, dropout: float, context: int):
         super(MultiHeadAttention, self).__init__()
-        self.n_heads = nn.ModuleList([Head(head_size, BAIS, dropout, context) for _ in range(n_heads)])
+        self.n_heads = nn.ModuleList([Head(head_size, embed_size, BAIS, dropout, context) for _ in range(n_heads)])
         self.linear  = nn.Linear(n_heads * head_size, embed_size, bias=BAIS)
         self.dropout = nn.Dropout(dropout)
 
