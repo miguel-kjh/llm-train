@@ -46,14 +46,14 @@ train_iters = 10e4
 eval_interval = 50
 eval_iters = 10
 compile_ = False
-load_pretrained = False
+load_pretrained = True
 checkpoint_dir = 'models'
 checkpoint_fn = 'latest.pt'
 checkpoint_load_fn = 'latest.pt'
 dtype = torch.bfloat16
 
 #Mode
-inference = False
+inference = True
 
 #device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -61,7 +61,7 @@ print(f"Device: {device}")
 
 
 # loggin
-wandb_log = True
+wandb_log = False
 wandb_project = 'llm'
 wandb_run_name = 'llm_normal' + datetime.now().strftime("%Y%m%d-%H%M%S")
 
