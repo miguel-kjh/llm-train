@@ -55,16 +55,20 @@ class FeedForward(nn.Module):
     def __init__(self, embed_size: int, BAIS: bool, dropout: float, expansion: int = 6):
         super(FeedForward, self).__init__()
         inner_size = embed_size * expansion
-        self.net = nn.Sequential(
-            nn.Linear(embed_size, inner_size, bias=BAIS),
-            nn.GELU(),
-            RegulatedLayer(inner_size, dropout, bias=BAIS),
-            nn.Linear(inner_size, embed_size, bias=BAIS),
-            nn.Dropout(dropout)
-        )
+        # Declaramos cada capa por separado
+        self.linear1 = nn.Linear(embed_size, inner_size, bias=BAIS)
+        self.gelu = nn.GELU()
+        self.regulated_layer = RegulatedLayer(inner_size, dropout, bias=BAIS)
+        self.linear2 = nn.Linear(inner_size, embed_size, bias=BAIS)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return self.net(x) 
+        x = self.linear1(x)
+        x = self.gelu(x)
+        x = x + self.regulated_layer(x)
+        x = self.linear2(x)
+        x = self.dropout(x)
+        return x
 
 class Block(nn.Module):
 
