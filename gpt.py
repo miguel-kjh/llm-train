@@ -39,6 +39,15 @@ class MultiHeadAttention(nn.Module):
         x = torch.cat(heads, dim=-1)
         x = self.linear(x)
         return self.dropout(x)
+    
+class RegulatedLayer(nn.Module):
+    def __init__(self, inner_size: int, dropout: float, bias: bool):
+        super(RegulatedLayer, self).__init__()
+        self.gate = nn.Linear(inner_size, inner_size)
+
+    def forward(self, x):
+        gate = torch.sigmoid(self.gate(x))
+        return x * gate
 
 class FeedForward(nn.Module):
     def __init__(self, embed_size: int, BAIS: bool, dropout: float, expansion: int = 6):
@@ -47,6 +56,7 @@ class FeedForward(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(embed_size, inner_size, bias=BAIS),
             nn.GELU(),
+            RegulatedLayer(inner_size, dropout, bias=BAIS),
             nn.Linear(inner_size, embed_size, bias=BAIS),
             nn.Dropout(dropout)
         )
