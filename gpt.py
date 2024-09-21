@@ -65,7 +65,7 @@ class FeedForward(nn.Module):
     def forward(self, x):
         x = self.linear1(x)
         x = self.gelu(x)
-        x = x + self.regulated_layer(x)
+        #x = x + self.regulated_layer(x)
         x = self.linear2(x)
         x = self.dropout(x)
         return x
