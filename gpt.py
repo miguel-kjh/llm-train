@@ -110,14 +110,14 @@ class GPT(nn.Module):
         x = emb + pos
         x = self.blocks(x) # (batch_size, context, embed_size)
         x = self.ln(x) # (batch_size, context, embed_size)
-        self.logits = self.final_layer(x) # (batch_size, context, vocab_size)
+        logits = self.final_layer(x) # (batch_size, context, vocab_size)
         if targets is not None:
             # targets: (batch_size, context)
             BS, SL, VS = logits.shape  # (BS,SL,4096)
             logits = logits.view(BS*SL,VS)  # Reshape to prepare for cross_entropy (BS*SL,4096)
             targets = targets.view(BS*SL)   # Reshape as well (BS*SL)
             loss = F.cross_entropy(logits,targets)
-        return self.logits, loss
+        return logits, loss
     
     # generate new samples
     def generate(self, x, max: int, context: int):
