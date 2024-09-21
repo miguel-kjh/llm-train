@@ -43,10 +43,12 @@ class MultiHeadAttention(nn.Module):
 class RegulatedLayer(nn.Module):
     def __init__(self, inner_size: int, dropout: float, bias: bool):
         super(RegulatedLayer, self).__init__()
-        self.gate = nn.Linear(inner_size, inner_size)
+        self.gate = nn.Linear(inner_size, inner_size, bias=bias)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         gate = torch.sigmoid(self.gate(x))
+        gate = self.dropout(gate)
         return x * gate
 
 class FeedForward(nn.Module):
