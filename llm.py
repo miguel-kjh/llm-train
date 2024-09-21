@@ -42,7 +42,7 @@ weight_decay = 0.01
 grad_clip = 1.0
 
 # Hyperparameters training
-train_iters = 10e5
+train_iters = 10e4
 eval_interval = 50
 eval_iters = 10
 compile_ = False
@@ -61,9 +61,9 @@ print(f"Device: {device}")
 
 
 # loggin
-wandb_log = False
-wandb_project = 'llm_test'
-wandb_run_name = 'llm1' + datetime.now().strftime("%Y%m%d-%H%M%S")
+wandb_log = True
+wandb_project = 'llm'
+wandb_run_name = 'llm_normal' + datetime.now().strftime("%Y%m%d-%H%M%S")
 
 if wandb_log:
     import wandb
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     print(f"Model parameters: {formating_num(parameters)} M")
 
     @torch.no_grad()
-    def calculate_loss():
+    def calculate_loss() -> dict:
         out = {}
         model.eval()
         for split, data in [("train", train_data), ("eval", val_data)]:
@@ -178,9 +178,7 @@ if __name__ == '__main__':
             out[split] = l.mean().item()
         model.train()
         return out
-    
-    print(calculate_loss())
-    
+        
     p_dict = {p_name: p for p_name, p in model.named_parameters() if p.requires_grad}
     weight_decay_params = [p for n, p in p_dict.items() if p.dim() >= 2]
     no_decay_params = [p for n, p in p_dict.items() if p.dim() < 2]
@@ -193,5 +191,74 @@ if __name__ == '__main__':
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, train_iters, eta_min=lr/10)
     
     start_iter, best_val_loss = load_checkpoints(model, optimizer, checkpoint_dir, checkpoint_load_fn)
+
+    ## Inference
+    if inference:
+        model.eval()
+        while True:
+            input_ = input("Enter the beginning of a sentence: ")
+            if input_ == "exit":
+                break
+            if len(input_) == 0:
+                continue
+            print("Generated: ", generate_samples(model, input_, context, max=100))
+        sys.exit()
+
+    # Training
+    try:
+        model.train()
+        for i in tqdm(range(start_iter, int(train_iters)), initial=start_iter, total=int(train_iters)):
+            x, y = get_batch(train_data, batch_size, context)
+            logits, loss_batch = model(x, y)
+
+            # Evaluation
+            if (i % eval_interval == 0) or (i == train_iters - 1):
+                loss = calculate_loss()
+                print(f"Train loss: {loss['train']} | Eval loss: {loss['eval']}")
+                if loss['eval'] < best_val_loss:
+                    print(f"Saving checkpoint to {checkpoint_dir}/{checkpoint_fn}")
+                    best_val_loss = loss['eval']
+                    torch.save({
+                        'model': model.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'iter': i,
+                        'best_val_loss': best_val_loss
+                    }, os.path.join(checkpoint_dir, checkpoint_fn))
+
+                if wandb_log:
+                    wandb.log(
+                        {
+                            'train_loss': loss['train'], 
+                            'eval_loss': loss['eval'], 
+                            'lr': scheduler.get_last_lr()[0], 
+                        },
+                        step=i
+                    )
+
+            # Backward
+            optimizer.zero_grad(set_to_none=True)
+            loss_batch.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            optimizer.step()
+            scheduler.step()
+        print("Training completed")
+
+        if wandb_log:
+            wandb.finish()
+    except KeyboardInterrupt:
+        print("Training interrupted")
+        if wandb_log:
+            wandb.finish()
+        sys.exit(0)
+    except Exception as e:
+        print("Error: ", e)
+    finally:
+        torch.cuda.empty_cache()
+        print("GPU memory cleaned")
+        sys.exit(0)
+    torch.cuda.empty_cache()
+
+
+
 
     
