@@ -215,6 +215,7 @@ if __name__ == '__main__':
             if (i % eval_interval == 0) or (i == train_iters - 1):
                 loss = calculate_loss()
                 print(f"Train loss: {loss['train']} | Eval loss: {loss['eval']}")
+                print(generate_samples(model, "The quick brown fox jumps over the lazy dog", context, max=20))
                 if loss['eval'] < best_val_loss:
                     print(f"Saving checkpoint to {checkpoint_dir}/{checkpoint_fn}")
                     best_val_loss = loss['eval']
