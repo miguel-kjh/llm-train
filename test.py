@@ -7,7 +7,7 @@ x = torch.randn(10, 20, 30, 100)
 # Para aplicar convolución 2D, necesitamos reorganizar las dimensiones a [batch_size, channels, height, width]
 # Podemos interpretar el 20 como canales, y 30x100 como las dimensiones espaciales
 # Reorganizamos la entrada a: [batch_size=10, channels=20, height=30, width=100]
-x = x.permute(0, 1, 2, 3)  # Asegurarnos de que está en el orden adecuado
+# x = x.permute(0, 1, 2, 3)  # Asegurarnos de que está en el orden adecuado
 print(x.shape)  # Verifica que es [10, 20, 30, 100]
 
 # Definimos una convolución 2D que reducirá las 10 instancias a una única salida

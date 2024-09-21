@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
+
 
 class Head(nn.Module):
-    def __init__(self, head_size: int, embed_size: int, BAIS: bool, context: int):
+    def __init__(self, head_size: int, embed_size: int, BAIS: bool, context: int, dropout: float):
         super(Head, self).__init__()
         self.q = nn.Linear(embed_size, head_size, bias=BAIS)
         self.k = nn.Linear(embed_size, head_size, bias=BAIS)
         self.v = nn.Linear(embed_size, head_size, bias=BAIS)
+        self.dropout = nn.Dropout(dropout)
         self.register_buffer("trill", torch.tril(torch.ones(context, context)))
 
     def forward(self, x):
@@ -16,9 +19,10 @@ class Head(nn.Module):
         keys = self.k(x)
         values = self.v(x)
 
-        attn_w = queries @ keys.transpose(-2, -1) / (keys.shape[-1] ** -0.5) # (batch_size, context, context)
+        attn_w = queries @ keys.transpose(-2,-1) * keys.shape[-1]**-0.5 # (batch_size, context, context)
         attn_w = attn_w.masked_fill(self.trill[:SL, :SL] == 0, float('-inf'))
-        attn_w = nn.functional.softmax(attn_w, dim=-1)
+        attn_w = F.softmax(attn_w, dim=-1)
+        attn_w = self.dropout(attn_w)
 
         x = attn_w @ values # (batch_size, context, head_size)
         return x
@@ -26,7 +30,7 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_heads: int, head_size: int, embed_size: int, BAIS: bool, dropout: float, context: int):
         super(MultiHeadAttention, self).__init__()
-        self.n_heads = nn.ModuleList([Head(head_size, embed_size, BAIS, context) for _ in range(n_heads)])
+        self.n_heads = nn.ModuleList([Head(head_size, embed_size, BAIS, context, dropout) for _ in range(n_heads)])
         self.linear  = nn.Linear(n_heads * head_size, embed_size, bias=BAIS)
         self.dropout = nn.Dropout(dropout)
 
@@ -109,8 +113,10 @@ class GPT(nn.Module):
         self.logits = self.final_layer(x) # (batch_size, context, vocab_size)
         if targets is not None:
             # targets: (batch_size, context)
-            # self.logits: (batch_size, context, vocab_size) -> (batch_size*context, vocab_size)
-            loss = nn.CrossEntropyLoss()(self.logits.view(-1, self.logits.size(-1)), targets.view(-1))
+            BS, SL, VS = logits.shape  # (BS,SL,4096)
+            logits = logits.view(BS*SL,VS)  # Reshape to prepare for cross_entropy (BS*SL,4096)
+            targets = targets.view(BS*SL)   # Reshape as well (BS*SL)
+            loss = F.cross_entropy(logits,targets)
         return self.logits, loss
     
     # generate new samples
@@ -119,7 +125,7 @@ class GPT(nn.Module):
             x = x[:, -context:] # (1, context)
             logits, _ = self(x)
             logits = logits[:, -1, :]
-            probs = nn.functional.softmax(logits, dim=-1)
+            probs = F.softmax(logits, dim=-1)
             next_token = torch.multinomial(probs, num_samples=1)
             x = torch.cat((x, next_token), dim=1)
         return x
