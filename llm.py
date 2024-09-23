@@ -61,7 +61,7 @@ print(f"Device: {device}")
 
 
 # loggin
-wandb_log = False
+wandb_log = True
 wandb_project = 'llm'
 wandb_run_name = 'llm_normal' + datetime.now().strftime("%Y%m%d-%H%M%S")
 
