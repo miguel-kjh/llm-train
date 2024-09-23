@@ -2,11 +2,9 @@
 #SBATCH --account=bsc81
 #SBATCH --job-name=test
 #SBATCH -q acc_bscls
-#SBATCH -c 80
-#SBATCH --gres=gpu:4
-#SBATCH -N 8
-#SBATCH -t 00-35:00:00
-#SBATCH --exclusive
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --time=01:00:00
 #SBATCH --mail-type=all
 #SBATCH --mail-user=miguel.medina@bsc.es
 #SBATCH --exclusive
