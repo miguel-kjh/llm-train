@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --account=bsc81
+#SBATCH --account=bsc88
 #SBATCH --job-name=test
 #SBATCH -q acc_bscls
 #SBATCH --nodes=1
